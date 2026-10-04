@@ -10,7 +10,9 @@
 
 import * as SQLite from "expo-sqlite";
 import { compararSeguro, generarSalt, hashearPassword } from "./security";
+import { sembrarDatosIniciales } from "./seed";
 import type {
+  ActualizarPerfilInput,
   ActualizarTrabajadorInput,
   Cliente,
   DetalleCotizacionResuelto,
@@ -26,7 +28,6 @@ import type {
   TrabajadorErrorCodigo,
   TrabajadorPublico,
   UsuarioSesion,
-  ActualizarPerfilInput,
 } from "./types";
 
 const DB_NAME = "taller_alexander.db";
@@ -425,6 +426,7 @@ export async function initDatabase(): Promise<SQLite.SQLiteDatabase> {
 
   dbInstance = db;
   await seedUsuariosPorDefecto();
+  await sembrarDatosIniciales(db);
   return db;
 }
 
@@ -839,7 +841,8 @@ const PASSWORD_MIN = 8;
 /** Salt fijo solo para igualar el tiempo de respuesta cuando el correo no existe. */
 const SALT_SEÑUELO = "00000000000000000000000000000000";
 
-const normalizarCorreo = (correo: string): string => correo.trim().toLowerCase();
+const normalizarCorreo = (correo: string): string =>
+  correo.trim().toLowerCase();
 const normalizarTelefono = (tel: string): string => tel.replace(/[\s-]/g, "");
 
 const SELECT_TRABAJADOR_PUBLICO = `
@@ -859,19 +862,22 @@ function invalido(mensaje: string): never {
 
 function validarNombre(nombre: string): string {
   const limpio = nombre.trim();
-  if (limpio.length < 2) invalido("El nombre debe tener al menos 2 caracteres.");
+  if (limpio.length < 2)
+    invalido("El nombre debe tener al menos 2 caracteres.");
   return limpio;
 }
 
 function validarCorreo(correo: string): string {
   const limpio = normalizarCorreo(correo);
-  if (!REGEX_CORREO.test(limpio)) invalido("El correo no tiene un formato válido.");
+  if (!REGEX_CORREO.test(limpio))
+    invalido("El correo no tiene un formato válido.");
   return limpio;
 }
 
 function validarDni(dni: string): string {
   const limpio = dni.trim();
-  if (!REGEX_DNI.test(limpio)) invalido("El DNI debe tener exactamente 8 dígitos.");
+  if (!REGEX_DNI.test(limpio))
+    invalido("El DNI debe tener exactamente 8 dígitos.");
   return limpio;
 }
 
@@ -929,7 +935,10 @@ async function verificarDuplicados(
       [correo, excluir],
     );
     if (dup) {
-      throw new TrabajadorError("CORREO_DUPLICADO", "Ya existe un trabajador con ese correo.");
+      throw new TrabajadorError(
+        "CORREO_DUPLICADO",
+        "Ya existe un trabajador con ese correo.",
+      );
     }
   }
   if (dni !== undefined) {
@@ -938,7 +947,10 @@ async function verificarDuplicados(
       [dni, excluir],
     );
     if (dup) {
-      throw new TrabajadorError("DNI_DUPLICADO", "Ya existe un trabajador con ese DNI.");
+      throw new TrabajadorError(
+        "DNI_DUPLICADO",
+        "Ya existe un trabajador con ese DNI.",
+      );
     }
   }
 }
@@ -948,10 +960,16 @@ function traducirErrorSqlite(e: unknown): never {
   if (e instanceof TrabajadorError) throw e;
   const mensaje = e instanceof Error ? e.message : String(e);
   if (mensaje.includes("UNIQUE") && mensaje.includes("correo")) {
-    throw new TrabajadorError("CORREO_DUPLICADO", "Ya existe un trabajador con ese correo.");
+    throw new TrabajadorError(
+      "CORREO_DUPLICADO",
+      "Ya existe un trabajador con ese correo.",
+    );
   }
   if (mensaje.includes("UNIQUE") && mensaje.includes("dni")) {
-    throw new TrabajadorError("DNI_DUPLICADO", "Ya existe un trabajador con ese DNI.");
+    throw new TrabajadorError(
+      "DNI_DUPLICADO",
+      "Ya existe un trabajador con ese DNI.",
+    );
   }
   throw e;
 }
@@ -975,7 +993,8 @@ export async function getTrabajadores(
   if (filtro.soloActivos) {
     condiciones.push("t.activo = 1");
   }
-  const where = condiciones.length > 0 ? `WHERE ${condiciones.join(" AND ")}` : "";
+  const where =
+    condiciones.length > 0 ? `WHERE ${condiciones.join(" AND ")}` : "";
 
   return db.getAllAsync<TrabajadorPublico>(
     `${SELECT_TRABAJADOR_PUBLICO} ${where} ORDER BY t.nombre COLLATE NOCASE ASC;`,
@@ -1054,15 +1073,32 @@ export async function actualizarTrabajador(
   const sets: string[] = [];
   const params: (string | number)[] = [];
 
-  const nombre = cambios.nombre !== undefined ? validarNombre(cambios.nombre) : undefined;
-  const correo = cambios.correo !== undefined ? validarCorreo(cambios.correo) : undefined;
-  const telefono = cambios.telefono !== undefined ? validarTelefono(cambios.telefono) : undefined;
+  const nombre =
+    cambios.nombre !== undefined ? validarNombre(cambios.nombre) : undefined;
+  const correo =
+    cambios.correo !== undefined ? validarCorreo(cambios.correo) : undefined;
+  const telefono =
+    cambios.telefono !== undefined
+      ? validarTelefono(cambios.telefono)
+      : undefined;
   const dni = cambios.dni !== undefined ? validarDni(cambios.dni) : undefined;
 
-  if (nombre !== undefined) { sets.push("nombre = ?"); params.push(nombre); }
-  if (correo !== undefined) { sets.push("correo = ?"); params.push(correo); }
-  if (telefono !== undefined) { sets.push("telefono = ?"); params.push(telefono); }
-  if (dni !== undefined) { sets.push("dni = ?"); params.push(dni); }
+  if (nombre !== undefined) {
+    sets.push("nombre = ?");
+    params.push(nombre);
+  }
+  if (correo !== undefined) {
+    sets.push("correo = ?");
+    params.push(correo);
+  }
+  if (telefono !== undefined) {
+    sets.push("telefono = ?");
+    params.push(telefono);
+  }
+  if (dni !== undefined) {
+    sets.push("dni = ?");
+    params.push(dni);
+  }
   if (cambios.tipo_contrato !== undefined) {
     sets.push("tipo_contrato = ?");
     params.push(cambios.tipo_contrato);
@@ -1100,7 +1136,10 @@ export async function actualizarTrabajador(
         actual.activo === 1 &&
         ((cambios.rol !== undefined && cambios.rol !== "admin") ||
           cambios.activo === false);
-      if (dejaDeSerAdminActivo && (await contarAdminsActivos(db, idTrabajador)) === 0) {
+      if (
+        dejaDeSerAdminActivo &&
+        (await contarAdminsActivos(db, idTrabajador)) === 0
+      ) {
         throw new TrabajadorError(
           "ULTIMO_ADMIN",
           "No puedes quitar el rol ni desactivar al único administrador activo.",
@@ -1128,11 +1167,21 @@ export function errorDeCampo(
 ): string | null {
   try {
     switch (campo) {
-      case "nombre": validarNombre(valor); break;
-      case "correo": validarCorreo(valor); break;
-      case "telefono": validarTelefono(valor); break;
-      case "dni": validarDni(valor); break;
-      case "passwordNueva": validarPasswordNueva(valor); break;
+      case "nombre":
+        validarNombre(valor);
+        break;
+      case "correo":
+        validarCorreo(valor);
+        break;
+      case "telefono":
+        validarTelefono(valor);
+        break;
+      case "dni":
+        validarDni(valor);
+        break;
+      case "passwordNueva":
+        validarPasswordNueva(valor);
+        break;
     }
     return null;
   } catch (e) {
@@ -1159,7 +1208,13 @@ export async function actualizarPerfil(
   cambios: ActualizarPerfilInput,
 ): Promise<TrabajadorPublico> {
   const { nombre, correo, telefono, dni, tipo_contrato } = cambios;
-  await actualizarTrabajador(idTrabajador, { nombre, correo, telefono, dni, tipo_contrato });
+  await actualizarTrabajador(idTrabajador, {
+    nombre,
+    correo,
+    telefono,
+    dni,
+    tipo_contrato,
+  });
   const actualizado = await getTrabajadorPorId(idTrabajador);
   if (!actualizado) {
     throw new TrabajadorError("NO_ENCONTRADO", "El trabajador no existe.");
@@ -1183,7 +1238,8 @@ export async function cambiarPassword(
     `SELECT password_hash, password_salt FROM Trabajador WHERE id_trabajador = ?;`,
     [idTrabajador],
   );
-  if (!fila) throw new TrabajadorError("NO_ENCONTRADO", "El trabajador no existe.");
+  if (!fila)
+    throw new TrabajadorError("NO_ENCONTRADO", "El trabajador no existe.");
 
   const incorrecta = new TrabajadorError(
     "PASSWORD_ACTUAL_INCORRECTA",
@@ -1251,7 +1307,9 @@ export async function eliminarTrabajador(idTrabajador: number): Promise<void> {
       );
     }
 
-    await db.runAsync(`DELETE FROM Trabajador WHERE id_trabajador = ?;`, [idTrabajador]);
+    await db.runAsync(`DELETE FROM Trabajador WHERE id_trabajador = ?;`, [
+      idTrabajador,
+    ]);
   });
 }
 
