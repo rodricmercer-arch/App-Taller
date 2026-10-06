@@ -32,6 +32,7 @@ const COLORS = {
   gray: "#f5f6fa",
   border: "#dcdde1",
   placeholder: "#a4b0be",
+    black: "#000000",
 };
 
 type TipoActivo = "Vehiculo" | "EquipoEstacionario";
@@ -756,7 +757,7 @@ function ModalNuevoCliente({
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
-    backgroundColor: COLORS.gray,
+    backgroundColor: COLORS.black,
     padding: 20,
     paddingTop: 60,
   },
@@ -767,7 +768,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: "bold",
-    color: COLORS.dark,
+    color: COLORS.white,
     marginTop: 10,
   },
   subtitle: {
@@ -775,7 +776,7 @@ const styles = StyleSheet.create({
     color: "#718093",
   },
   form: {
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.dark,
     borderRadius: 15,
     padding: 20,
     shadowColor: "#000",
@@ -787,19 +788,19 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: "600",
-    color: COLORS.dark,
+    color: COLORS.white,
     marginBottom: 5,
     marginTop: 15,
   },
   input: {
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: "#dfddd171",
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 12,
     fontSize: 16,
-    backgroundColor: "#f8f9fa",
-    color: COLORS.dark,
+    backgroundColor: "#1e272e",
+    color: COLORS.white,
   },
   row: {
     flexDirection: "row",
@@ -810,17 +811,17 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 10,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: COLORS.white,
     borderRadius: 8,
     alignItems: "center",
-    backgroundColor: "#f8f9fa",
+    backgroundColor: COLORS.white,
   },
   chipActive: {
     backgroundColor: COLORS.red,
     borderColor: COLORS.red,
   },
   chipText: {
-    color: COLORS.dark,
+    color: COLORS.black,
     fontWeight: "600",
   },
   chipTextActive: {
@@ -884,7 +885,7 @@ const modalStyles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     backgroundColor: "#f8f9fa",
-    color: COLORS.dark,
+    color: COLORS.white,
   },
   saveButton: {
     backgroundColor: COLORS.red,
