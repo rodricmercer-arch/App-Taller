@@ -9,18 +9,19 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    FlatList,
-    Modal,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  Modal,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 const COLORS = {
   red: "#C1272D",
+  yellow: "#E8B923",
   white: "#FFFFFF",
   dark: "#2f3640",
   gray: "#f5f6fa",
@@ -211,7 +212,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: "600",
-    color: COLORS.dark,
+    color: COLORS.white,
   },
   quickAddButton: {
     flexDirection: "row",
@@ -228,11 +229,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: "#dfddd171",
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 12,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: "#1e272e",
     minHeight: 46,
   },
   selectorDisabled: {
@@ -240,7 +241,7 @@ const styles = StyleSheet.create({
   },
   selectorTextFilled: {
     fontSize: 16,
-    color: COLORS.dark,
+    color: COLORS.placeholder,
     flex: 1,
   },
   selectorTextPlaceholder: {
