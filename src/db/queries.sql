@@ -222,3 +222,5 @@ JOIN TipoMantenimiento tm ON tm.tipo_medidor_aplicable = m.tipo_medidor
 LEFT JOIN ultima_orden uo ON uo.id_medidor = m.id_medidor
                           AND uo.id_tipo_mantenimiento = tm.id_tipo_mantenimiento
 ORDER BY restante ASC;
+
+SELECT*FROM Cliente;
