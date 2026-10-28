@@ -15,6 +15,12 @@ import {
   View,
 } from "react-native";
 import { crearTrabajador, TrabajadorError } from "../db/database";
+import {
+  errorDocumento,
+  errorTelefono,
+  limpiarDigitos,
+  limpiarTelefono,
+} from "../utils/validaciones";
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -27,29 +33,41 @@ export default function RegisterScreen() {
   const [cargando, setCargando] = useState(false);
 
   const handleRegister = async () => {
-  setCargando(true);
-  try {
-    await crearTrabajador({
-      nombre,
-      correo,
-      telefono,
-      dni,
-      password,
-      rol: "trabajador",
-      tipo_contrato: "Fijo",
-    });
-    Alert.alert("Cuenta creada", "Ya puedes iniciar sesión.", [
-      { text: "OK", onPress: () => router.replace("/login" as any) },
-    ]);
-  } catch (e) {
-    Alert.alert(
-      "No se pudo registrar",
-      e instanceof TrabajadorError ? e.message : "Ocurrió un error inesperado. Intenta de nuevo.",
-    );
-  } finally {
-    setCargando(false);
-  }
-};
+    const errorDni = errorDocumento("DNI", dni);
+    if (errorDni) {
+      Alert.alert("DNI inválido", errorDni);
+      return;
+    }
+    const errorTel = errorTelefono(telefono);
+    if (errorTel) {
+      Alert.alert("Teléfono inválido", errorTel);
+      return;
+    }
+    setCargando(true);
+    try {
+      await crearTrabajador({
+        nombre,
+        correo,
+        telefono,
+        dni,
+        password,
+        rol: "trabajador",
+        tipo_contrato: "Fijo",
+      });
+      Alert.alert("Cuenta creada", "Ya puedes iniciar sesión.", [
+        { text: "OK", onPress: () => router.replace("/login" as any) },
+      ]);
+    } catch (e) {
+      Alert.alert(
+        "No se pudo registrar",
+        e instanceof TrabajadorError
+          ? e.message
+          : "Ocurrió un error inesperado. Intenta de nuevo.",
+      );
+    } finally {
+      setCargando(false);
+    }
+  };
 
   return (
     <ImageBackground
@@ -117,8 +135,9 @@ export default function RegisterScreen() {
                 style={styles.input}
                 placeholderTextColor="#777"
                 value={telefono}
-                onChangeText={setTelefono}
+                onChangeText={(t) => setTelefono(limpiarTelefono(t))}
                 keyboardType="phone-pad"
+                maxLength={12}
               />
             </View>
 
@@ -128,8 +147,8 @@ export default function RegisterScreen() {
                 style={styles.input}
                 placeholderTextColor="#777"
                 value={dni}
-                onChangeText={setDni}
-                keyboardType="numeric"
+                onChangeText={(t) => setDni(limpiarDigitos(t))}
+                keyboardType="number-pad"
                 maxLength={8}
               />
             </View>
@@ -165,7 +184,10 @@ export default function RegisterScreen() {
             onPress={handleRegister}
             disabled={cargando}
           >
-            <Text style={styles.primaryButtonText}> {cargando ? "Creando cuenta..." : "Registrarse"} </Text>
+            <Text style={styles.primaryButtonText}>
+              {" "}
+              {cargando ? "Creando cuenta..." : "Registrarse"}{" "}
+            </Text>
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
