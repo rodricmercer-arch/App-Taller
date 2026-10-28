@@ -241,7 +241,7 @@ const styles = StyleSheet.create({
   },
   selectorTextFilled: {
     fontSize: 16,
-    color: COLORS.placeholder,
+    color: COLORS.white,
     flex: 1,
   },
   selectorTextPlaceholder: {
