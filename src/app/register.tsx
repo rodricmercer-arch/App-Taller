@@ -2,6 +2,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
+  Alert,
   ImageBackground,
   KeyboardAvoidingView,
   Platform,
@@ -13,6 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { crearTrabajador, TrabajadorError } from "../db/database";
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -22,11 +24,32 @@ export default function RegisterScreen() {
   const [dni, setDni] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [cargando, setCargando] = useState(false);
 
-  const handleRegister = () => {
-    // TODO: conectar con la lógica de registro real
-    console.log("Register:", { nombre, correo, telefono, dni, password });
-  };
+  const handleRegister = async () => {
+  setCargando(true);
+  try {
+    await crearTrabajador({
+      nombre,
+      correo,
+      telefono,
+      dni,
+      password,
+      rol: "trabajador",
+      tipo_contrato: "Fijo",
+    });
+    Alert.alert("Cuenta creada", "Ya puedes iniciar sesión.", [
+      { text: "OK", onPress: () => router.replace("/login" as any) },
+    ]);
+  } catch (e) {
+    Alert.alert(
+      "No se pudo registrar",
+      e instanceof TrabajadorError ? e.message : "Ocurrió un error inesperado. Intenta de nuevo.",
+    );
+  } finally {
+    setCargando(false);
+  }
+};
 
   return (
     <ImageBackground
@@ -137,11 +160,12 @@ export default function RegisterScreen() {
 
           {/* Botón Registrarse */}
           <TouchableOpacity
-            style={styles.primaryButton}
+            style={[styles.primaryButton, cargando && { opacity: 0.6 }]}
             activeOpacity={0.8}
             onPress={handleRegister}
+            disabled={cargando}
           >
-            <Text style={styles.primaryButtonText}>Registrarse</Text>
+            <Text style={styles.primaryButtonText}> {cargando ? "Creando cuenta..." : "Registrarse"} </Text>
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
