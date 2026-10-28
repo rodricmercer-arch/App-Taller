@@ -18,11 +18,22 @@ import {
   crearMarca,
   crearTipoUnidad,
   crearVehiculo,
+  existePlaca,
   getClientes,
   getMarcas,
   getTiposUnidad,
 } from "../../db/database";
 import type { Cliente, Marca, TipoUnidad } from "../../db/types";
+import {
+  errorDocumento,
+  errorTelefono,
+  filtrarNumerico,
+  limpiarDigitos,
+  limpiarPlaca,
+  limpiarTelefono,
+  normalizarPlaca,
+  parseNumeroNoNegativo,
+} from "../../utils/validaciones";
 
 const COLORS = {
   red: "#C1272D",
@@ -32,7 +43,7 @@ const COLORS = {
   gray: "#f5f6fa",
   border: "#dcdde1",
   placeholder: "#a4b0be",
-    black: "#000000",
+  black: "#000000",
 };
 
 type TipoActivo = "Vehiculo" | "EquipoEstacionario";
@@ -123,30 +134,27 @@ export default function NuevoVehiculoScreen() {
 
     // 2. Placa: obligatoria solo si es Vehículo (índice UNIQUE condicional;
     //    un EquipoEstacionario debe insertarse con placa = NULL)
-    if (esVehiculo && !placa.trim()) {
+    if (esVehiculo && !normalizarPlaca(placa)) {
       Alert.alert(
-        "Falta la placa",
-        "La placa es obligatoria para un Vehículo. Si es un equipo estacionario, cambia el tipo de activo.",
+        "Placa inválida",
+        "Ingresa una placa de 6 caracteres (letras y números), con guion opcional. Ej: ABC-123. Si es un equipo estacionario, cambia el tipo de activo.",
       );
       return;
     }
 
     // 3. Capacidad es opcional, pero si se ingresa debe ser numérica válida
     const capacidadTrim = capacidad.trim();
-    if (
-      capacidadTrim &&
-      (isNaN(Number(capacidadTrim)) || Number(capacidadTrim) <= 0)
-    ) {
+    if (capacidadTrim && parseNumeroNoNegativo(capacidadTrim) === null) {
       Alert.alert(
         "Capacidad inválida",
-        "Ingresa un número mayor a 0 o deja el campo vacío.",
+        "Ingresa un número válido (0 o mayor, solo dígitos) o deja el campo vacío.",
       );
       return;
     }
 
     // 4. Medidor.lectura_actual es NOT NULL: obligatorio y numérico (>= 0)
     const lecturaTrim = lecturaInicial.trim();
-    if (!lecturaTrim || isNaN(Number(lecturaTrim)) || Number(lecturaTrim) < 0) {
+    if (parseNumeroNoNegativo(lecturaTrim) === null) {
       Alert.alert(
         "Lectura inicial inválida",
         "Ingresa la lectura inicial del medidor (0 o un número positivo).",
@@ -157,15 +165,26 @@ export default function NuevoVehiculoScreen() {
     try {
       setLoading(true);
 
+      if (esVehiculo) {
+        const placaNormalizada = normalizarPlaca(placa);
+        if (placaNormalizada && (await existePlaca(placaNormalizada))) {
+          Alert.alert(
+            "Placa duplicada",
+            `Ya existe un activo registrado con la placa ${placaNormalizada}.`,
+          );
+          return; // el finally apaga el loading
+        }
+      }
+
       await crearVehiculo(
         Number(idTipoUnidad),
         idMarca === SIN_MARCA_ID ? null : Number(idMarca), // id_marca NULL si "Sin Marca"
         Number(idCliente),
         tipoActivo,
-        esVehiculo ? placa.toUpperCase().trim() : null, // placa NULL si es EquipoEstacionario
-        capacidadTrim ? Number(capacidadTrim) : null,
+        esVehiculo ? normalizarPlaca(placa) : null, // placa NULL si es EquipoEstacionario
+        capacidadTrim ? parseNumeroNoNegativo(capacidadTrim) : null,
         tipoMedidor,
-        Number(lecturaTrim),
+        parseNumeroNoNegativo(lecturaTrim) ?? 0,
       );
 
       Alert.alert(
@@ -285,8 +304,9 @@ export default function NuevoVehiculoScreen() {
               placeholder="Ej: XYZ-999"
               placeholderTextColor={COLORS.placeholder}
               value={placa}
-              onChangeText={setPlaca}
+              onChangeText={(t) => setPlaca(limpiarPlaca(t))}
               autoCapitalize="characters"
+              maxLength={7}
             />
           </>
         )}
@@ -297,8 +317,8 @@ export default function NuevoVehiculoScreen() {
           placeholder="Opcional — Ej: 8000"
           placeholderTextColor={COLORS.placeholder}
           value={capacidad}
-          onChangeText={setCapacidad}
-          keyboardType="numeric"
+          onChangeText={(t) => setCapacidad(filtrarNumerico(t))}
+          keyboardType="decimal-pad"
         />
 
         {/* ESTÁTICO: Tipo de Medidor — define cálculos de mantenimiento en la app */}
@@ -357,8 +377,8 @@ export default function NuevoVehiculoScreen() {
           placeholder="Ej: 15000"
           placeholderTextColor={COLORS.placeholder}
           value={lecturaInicial}
-          onChangeText={setLecturaInicial}
-          keyboardType="numeric"
+          onChangeText={(t) => setLecturaInicial(filtrarNumerico(t))}
+          keyboardType="decimal-pad"
         />
 
         <TouchableOpacity
@@ -609,6 +629,16 @@ function ModalNuevoCliente({
       );
       return;
     }
+    const errorDoc = errorDocumento(tipoDocumento, numeroDocumento);
+    if (errorDoc) {
+      Alert.alert("Documento inválido", errorDoc);
+      return;
+    }
+    const errorTel = errorTelefono(telefono);
+    if (errorTel) {
+      Alert.alert("Teléfono inválido", errorTel);
+      return;
+    }
     try {
       setGuardando(true);
       const id = await crearCliente(
@@ -679,8 +709,9 @@ function ModalNuevoCliente({
         }
         placeholderTextColor={COLORS.placeholder}
         value={numeroDocumento}
-        onChangeText={setNumeroDocumento}
-        keyboardType="numeric"
+        onChangeText={(t) => setNumeroDocumento(limpiarDigitos(t))}
+        keyboardType="number-pad"
+        maxLength={tipoDocumento === "RUC" ? 11 : 8}
       />
 
       <Text style={modalStyles.label}>Nombre / Razón Social *</Text>
@@ -698,8 +729,9 @@ function ModalNuevoCliente({
         placeholder="Ej: 987654321"
         placeholderTextColor={COLORS.placeholder}
         value={telefono}
-        onChangeText={setTelefono}
+        onChangeText={(t) => setTelefono(limpiarTelefono(t))}
         keyboardType="phone-pad"
+        maxLength={12}
       />
 
       <Text style={modalStyles.label}>Tipo de Cliente *</Text>
@@ -885,7 +917,7 @@ const modalStyles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     backgroundColor: "#f8f9fa",
-    color: COLORS.white,
+    color: COLORS.dark,
   },
   saveButton: {
     backgroundColor: COLORS.red,

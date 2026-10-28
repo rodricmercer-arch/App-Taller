@@ -740,6 +740,23 @@ export async function eliminarVehiculo(idActivo: number): Promise<void> {
 
 export const eliminarActivo = eliminarVehiculo;
 
+/**
+ * ¿Ya existe un activo con esa placa?
+ * `excluirIdActivo` sirve al editar: ignora al propio activo para que
+ * guardar sin cambiar la placa no cuente como duplicado.
+ */
+export async function existePlaca(
+  placa: string,
+  excluirIdActivo?: number,
+): Promise<boolean> {
+  const db = getDb();
+  const fila = await db.getFirstAsync<{ id_activo: number }>(
+    `SELECT id_activo FROM Activo WHERE placa = ? AND id_activo <> ?;`,
+    [placa, excluirIdActivo ?? -1],
+  );
+  return fila !== null;
+}
+
 // ---------------------------------------------------------------------
 // LECTURA DE CATÁLOGOS (para poblar los SearchableSelect)
 // ---------------------------------------------------------------------
