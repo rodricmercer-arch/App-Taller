@@ -18,11 +18,18 @@ import {
 import SearchableSelect from "../components/SearchableSelect";
 import {
   actualizarVehiculo,
+  existePlaca,
   getActivoPorId,
   getMarcas,
   getTiposUnidad,
 } from "../db/database";
 import type { Marca, TipoUnidad } from "../db/types";
+import {
+  filtrarNumerico,
+  limpiarPlaca,
+  normalizarPlaca,
+  parseNumeroNoNegativo,
+} from "../utils/validaciones";
 
 const COLORS = {
   red: "#C1272D",
@@ -140,23 +147,20 @@ export default function EditActivoScreen() {
     }
 
     // 2. Placa obligatoria solo si es Vehículo (índice UNIQUE condicional)
-    if (esVehiculo && !placa.trim()) {
+    if (esVehiculo && !normalizarPlaca(placa)) {
       Alert.alert(
-        "Falta la placa",
-        "La placa es obligatoria para un Vehículo.",
+        "Placa inválida",
+        "Ingresa una placa de 6 caracteres (letras y números), con guion opcional. Ej: ABC-123.",
       );
       return;
     }
 
     // 3. Capacidad opcional, pero numérica si se ingresa
     const capacidadTrim = capacidad.trim();
-    if (
-      capacidadTrim &&
-      (isNaN(Number(capacidadTrim)) || Number(capacidadTrim) <= 0)
-    ) {
+    if (capacidadTrim && parseNumeroNoNegativo(capacidadTrim) === null) {
       Alert.alert(
         "Capacidad inválida",
-        "Ingresa un número mayor a 0 o deja el campo vacío.",
+        "Ingresa un número válido (0 o mayor, solo dígitos) o deja el campo vacío.",
       );
       return;
     }
@@ -164,12 +168,26 @@ export default function EditActivoScreen() {
     try {
       setGuardando(true);
 
+      if (esVehiculo) {
+        const placaNormalizada = normalizarPlaca(placa);
+        if (
+          placaNormalizada &&
+          (await existePlaca(placaNormalizada, idActivo))
+        ) {
+          Alert.alert(
+            "Placa duplicada",
+            `Ya existe otro activo registrado con la placa ${placaNormalizada}.`,
+          );
+          return; // el finally apaga el guardando
+        }
+      }
+
       await actualizarVehiculo(
         idActivo,
         Number(idTipoUnidad),
         idMarca === SIN_MARCA_ID ? null : Number(idMarca),
-        esVehiculo ? placa.toUpperCase().trim() : null, // placa NULL si es EquipoEstacionario
-        capacidadTrim ? Number(capacidadTrim) : null,
+        esVehiculo ? normalizarPlaca(placa) : null, // placa NULL si es EquipoEstacionario
+        capacidadTrim ? parseNumeroNoNegativo(capacidadTrim) : null,
       );
 
       Alert.alert("¡Guardado!", "Los cambios se guardaron correctamente.", [
@@ -257,8 +275,9 @@ export default function EditActivoScreen() {
               placeholder="Ej: XYZ-999"
               placeholderTextColor={COLORS.placeholder}
               value={placa}
-              onChangeText={setPlaca}
+              onChangeText={(t) => setPlaca(limpiarPlaca(t))}
               autoCapitalize="characters"
+              maxLength={7}
             />
           </>
         )}
@@ -269,8 +288,8 @@ export default function EditActivoScreen() {
           placeholder="Opcional — Ej: 8000"
           placeholderTextColor={COLORS.placeholder}
           value={capacidad}
-          onChangeText={setCapacidad}
-          keyboardType="numeric"
+          onChangeText={(t) => setCapacidad(filtrarNumerico(t))}
+          keyboardType="decimal-pad"
         />
 
         <TouchableOpacity
