@@ -1,12 +1,11 @@
-// src/app/(tabs)/cotizacion.tsx
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router"; // TEMPORAL FRENTE B
-import { useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useState } from "react";
 import {
-  Alert,
+  ActivityIndicator,
   FlatList,
-  Image,
   SafeAreaView,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
@@ -14,287 +13,218 @@ import {
   View,
 } from "react-native";
 import Sidebar from "../../components/Sidebar";
-import { debugUltimaCotizacion } from "../../db/debugFase0"; // TEMPORAL FRENTE B
+import {
+  listarCotizaciones,
+  type CotizacionResumen,
+} from "../../db/cotizaciones-estado";
+import type { EstadoCotizacion } from "../../db/types";
 
 // ---------- Colores institucionales (mismos que home.tsx) ----------
 const COLORS = {
   bgDark: "#121212",
   red: "#C1272D",
+  yellow: "#E8B923",
+  green: "#3DBE5C",
+  gray: "#9A9A9A",
   cardDark: "#2A2A2A",
   cardBorder: "#3A3A3A",
   white: "#FFFFFF",
   textMuted: "#A8A8A8",
 };
 
-// ---------- Tipos ----------
-interface Repuesto {
-  id: string;
-  nombre: string;
-  descripcion: string;
-  precio: number;
-  stock: number;
-  imagen: string;
-}
+const COLOR_ESTADO: Record<EstadoCotizacion, string> = {
+  Pendiente: COLORS.yellow,
+  Aprobada: COLORS.green,
+  Rechazada: COLORS.red,
+  Anulada: COLORS.gray,
+};
 
-// ---------- Datos de prueba (dummy data) ----------
-const repuestos: Repuesto[] = [
-  {
-    id: "1",
-    nombre: "Amortiguador",
-    descripcion: "Hidráulico reforzado para cargas pesadas.",
-    precio: 412.5,
-    stock: 8,
-    imagen:
-      "https://cdn.club-magazin.autodoc.de/uploads/sites/11/2020/11/amortiguador-de-coche.jpg",
-  },
-  {
-    id: "2",
-    nombre: "Bujías (x4)",
-    descripcion: "Juego de iridio de encendido rápido.",
-    precio: 96.9,
-    stock: 20,
-    imagen:
-      "https://cdn.club-magazin.autodoc.de/uploads/sites/11/2020/10/bujias.jpg",
-  },
-  {
-    id: "3",
-    nombre: "Pistón",
-    descripcion: "Pistón forjado con anillos incluidos.",
-    precio: 268.35,
-    stock: 5,
-    imagen:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT0CWS1_iNtoTtt_FGn3b1ndy2CKORbko-kQpdsWzzsAxtP3UHF-OoZefo&s=10",
-  },
-  {
-    id: "4",
-    nombre: "Filtro de aceite",
-    descripcion: "Alto rendimiento para motores diésel.",
-    precio: 45.0,
-    stock: 30,
-    imagen:
-      "https://provinnor.pe/wp-content/uploads/2025/09/filtro-de-aceite-sakura-c-65400.webp",
-  },
-  {
-    id: "5",
-    nombre: "Pastillas de freno",
-    descripcion: "Juego delantero cerámico, baja emisión de polvo.",
-    precio: 189.9,
-    stock: 12,
-    imagen:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTR7QPhG5T-U8zsDdvGVwdDYyys_UIcm8LGdxDiLrIL-A&s=10",
-  },
-  {
-    id: "6",
-    nombre: "Batería 12V 100Ah",
-    descripcion: "Libre de mantenimiento para camiones.",
-    precio: 745.0,
-    stock: 3,
-    imagen:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQdvf2vTRMt2Y9hQym3envw8sJ1hinfKYU0SdOy7SgAVQ&s=10",
-  },
+type Filtro = "Todas" | EstadoCotizacion;
+const FILTROS: readonly Filtro[] = [
+  "Todas",
+  "Pendiente",
+  "Aprobada",
+  "Rechazada",
+  "Anulada",
 ];
 
 // ---------- Utilidades ----------
 const formatearSoles = (monto: number): string => `S/ ${monto.toFixed(2)}`;
+const numeroCotizacion = (id: number): string =>
+  `N° ${String(id).padStart(4, "0")}`;
 
 // ---------- Componentes internos ----------
-function ImagenRepuesto({ uri }: { uri: string }) {
-  const [error, setError] = useState(false);
-
-  if (error) {
-    return (
-      <View style={[styles.productImage, styles.imageFallback]}>
-        <MaterialCommunityIcons
-          name="car-cog"
-          size={40}
-          color={COLORS.textMuted}
-        />
-      </View>
-    );
-  }
-
-  return (
-    <Image
-      source={{ uri }}
-      style={styles.productImage}
-      resizeMode="cover"
-      onError={() => setError(true)}
-    />
-  );
-}
-
-function TarjetaRepuesto({
-  repuesto,
-  seleccionado,
+function TarjetaCotizacion({
+  cotizacion,
   onPress,
 }: {
-  repuesto: Repuesto;
-  seleccionado: boolean;
+  cotizacion: CotizacionResumen;
   onPress: () => void;
 }) {
+  const colorBadge = COLOR_ESTADO[cotizacion.estado];
   return (
     <TouchableOpacity
+      style={styles.card}
       activeOpacity={0.85}
       onPress={onPress}
-      style={[styles.productCard, seleccionado && styles.productCardSelected]}
     >
-      <ImagenRepuesto uri={repuesto.imagen} />
-      <Text style={styles.productName} numberOfLines={1}>
-        {repuesto.nombre}
+      <View style={styles.cardTop}>
+        <Text style={styles.cardNumero}>
+          {numeroCotizacion(cotizacion.id_cotizacion)}
+        </Text>
+        <View style={[styles.badge, { backgroundColor: colorBadge }]}>
+          <Text
+            style={[
+              styles.badgeText,
+              cotizacion.estado === "Rechazada" && { color: COLORS.white },
+            ]}
+          >
+            {cotizacion.estado}
+          </Text>
+        </View>
+      </View>
+      <Text style={styles.cardPlaca}>{cotizacion.placa ?? "Sin placa"}</Text>
+      <Text style={styles.cardCliente} numberOfLines={1}>
+        {cotizacion.nombre_cliente}
       </Text>
-      <Text style={styles.productDescription} numberOfLines={2}>
-        {repuesto.descripcion}
-      </Text>
-      <Text style={styles.productStock}>Stock: {repuesto.stock}</Text>
-      <Text style={styles.productPrice}>{formatearSoles(repuesto.precio)}</Text>
+      <View style={styles.cardBottom}>
+        <Text style={styles.cardMeta}>
+          {cotizacion.fecha_emision} · {cotizacion.tipo_documento}
+        </Text>
+        <Text style={styles.cardTotal}>
+          {formatearSoles(cotizacion.monto_total)}
+        </Text>
+      </View>
     </TouchableOpacity>
   );
 }
 
 // ---------- Pantalla principal ----------
 export default function CotizacionScreen() {
+  const router = useRouter();
   const [sidebarVisible, setSidebarVisible] = useState(false);
-  const router = useRouter(); // TEMPORAL FRENTE B
-  const [seleccionadoId, setSeleccionadoId] = useState<string>(repuestos[0].id);
-  const [cantidad, setCantidad] = useState(1);
+  const [filtro, setFiltro] = useState<Filtro>("Todas");
+  const [cotizaciones, setCotizaciones] = useState<CotizacionResumen[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [errorCarga, setErrorCarga] = useState(false);
 
-  const seleccionado =
-    repuestos.find((r) => r.id === seleccionadoId) ?? repuestos[0];
-  const subtotal = seleccionado.precio * cantidad;
+  const cargar = useCallback(
+    async (esCancelado: () => boolean = () => false) => {
+      try {
+        setErrorCarga(false);
+        const data = await listarCotizaciones(
+          filtro === "Todas" ? undefined : filtro,
+        );
+        if (esCancelado()) return;
+        setCotizaciones(data);
+      } catch (error) {
+        console.error("No se pudieron cargar las cotizaciones:", error);
+        if (!esCancelado()) setErrorCarga(true);
+      } finally {
+        if (!esCancelado()) setCargando(false);
+      }
+    },
+    [filtro],
+  );
 
-  const seleccionar = (id: string) => {
-    setSeleccionadoId(id);
-    setCantidad(1);
-  };
+  useFocusEffect(
+    useCallback(() => {
+      let cancelado = false;
+      setCargando(true);
+      void cargar(() => cancelado);
+      return () => {
+        cancelado = true;
+      };
+    }, [cargar]),
+  );
 
-  const disminuir = () => setCantidad((c) => Math.max(1, c - 1));
-  const aumentar = () =>
-    setCantidad((c) => Math.min(seleccionado.stock, c + 1));
+  const abrirDetalle = (id: number) =>
+    router.push({
+      pathname: "/cotizacion-detalle",
+      params: { id: String(id) },
+    });
 
-  const agregar = () => {
-    Alert.alert(
-      "Agregado (demo)",
-      `${cantidad} x ${seleccionado.nombre}\nSubtotal: ${formatearSoles(subtotal)}`,
-    );
-  };
+  const mensajeVacio =
+    filtro === "Todas"
+      ? "Aún no hay cotizaciones"
+      : `No hay cotizaciones con estado ${filtro}`;
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.red} />
 
-      {/* Franja superior roja */}
       <SafeAreaView style={styles.headerSafeArea}>
         <View style={styles.header}>
           <TouchableOpacity
-            style={styles.menuButton}
+            style={styles.headerSide}
             onPress={() => setSidebarVisible(true)}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <Ionicons name="menu" size={28} color={COLORS.white} />
           </TouchableOpacity>
-          <Text style={styles.headerText}>Cotización</Text>
-          <View style={styles.menuButtonSpacer} />
+          <Text style={styles.headerText}>Cotizaciones</Text>
+          <TouchableOpacity
+            style={[styles.headerSide, styles.headerSideRight]}
+            onPress={() => router.push("/nueva-cotizacion")}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={styles.nuevaText}>+ Nueva</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
 
-      {/* TEMPORAL FRENTE B: inicio (borrar hasta "fin") */}
-      <View style={{ flexDirection: "row", gap: 8, padding: 12 }}>
-        <TouchableOpacity
-          style={{
-            flex: 1,
-            backgroundColor: COLORS.red,
-            borderRadius: 10,
-            padding: 12,
-            alignItems: "center",
-          }}
-          onPress={() => router.push("/nueva-cotizacion")}
+      <View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chipsContent}
         >
-          <Text style={{ color: COLORS.white, fontWeight: "800" }}>
-            + Nueva (temporal)
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={{
-            flex: 1,
-            backgroundColor: COLORS.cardDark,
-            borderRadius: 10,
-            padding: 12,
-            alignItems: "center",
-          }}
-          onPress={() => void debugUltimaCotizacion()}
-        >
-          <Text style={{ color: COLORS.white, fontWeight: "800" }}>
-            Debug última
-          </Text>
-        </TouchableOpacity>
+          {FILTROS.map((f) => {
+            const activo = f === filtro;
+            return (
+              <TouchableOpacity
+                key={f}
+                style={[styles.chip, activo && styles.chipActive]}
+                onPress={() => setFiltro(f)}
+              >
+                <Text
+                  style={[styles.chipText, activo && styles.chipTextActive]}
+                >
+                  {f}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       </View>
-      {/* TEMPORAL FRENTE B: fin */}
 
-      {/* Catálogo en cuadrícula de 2 columnas */}
-      <FlatList
-        data={repuestos}
-        keyExtractor={(item) => item.id}
-        numColumns={2}
-        columnWrapperStyle={styles.columnWrapper}
-        renderItem={({ item }) => (
-          <TarjetaRepuesto
-            repuesto={item}
-            seleccionado={item.id === seleccionadoId}
-            onPress={() => seleccionar(item.id)}
-          />
-        )}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        ListHeaderComponent={
-          <Text style={styles.sectionTitle}>Catálogo de repuestos</Text>
-        }
-      />
-
-      {/* Panel inferior fijo (superpuesto) */}
-      <View style={styles.footer}>
-        <View style={styles.footerTop}>
-          <View style={styles.footerInfo}>
-            <Text style={styles.footerName} numberOfLines={1}>
-              {seleccionado.nombre}
-            </Text>
-            <Text style={styles.footerSubtotal}>
-              {formatearSoles(subtotal)}
-            </Text>
-          </View>
-
-          <View style={styles.counter}>
-            <TouchableOpacity
-              style={[
-                styles.counterButton,
-                cantidad <= 1 && styles.counterButtonDisabled,
-              ]}
-              onPress={disminuir}
-              disabled={cantidad <= 1}
-            >
-              <Ionicons name="remove" size={22} color={COLORS.white} />
-            </TouchableOpacity>
-            <Text style={styles.counterValue}>{cantidad}</Text>
-            <TouchableOpacity
-              style={[
-                styles.counterButton,
-                cantidad >= seleccionado.stock && styles.counterButtonDisabled,
-              ]}
-              onPress={aumentar}
-              disabled={cantidad >= seleccionado.stock}
-            >
-              <Ionicons name="add" size={22} color={COLORS.white} />
-            </TouchableOpacity>
-          </View>
+      {cargando ? (
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={COLORS.red} />
         </View>
-
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={agregar}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.addButtonText}>AGREGAR</Text>
-        </TouchableOpacity>
-      </View>
+      ) : errorCarga ? (
+        <View style={styles.centered}>
+          <Text style={styles.emptyText}>
+            No se pudieron cargar las cotizaciones.
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={cotizaciones}
+          keyExtractor={(item) => String(item.id_cotizacion)}
+          renderItem={({ item }) => (
+            <TarjetaCotizacion
+              cotizacion={item}
+              onPress={() => abrirDetalle(item.id_cotizacion)}
+            />
+          )}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <Text style={styles.emptyText}>{mensajeVacio}</Text>
+          }
+        />
+      )}
 
       <Sidebar
         visible={sidebarVisible}
@@ -306,13 +236,8 @@ export default function CotizacionScreen() {
 
 // ---------- Estilos ----------
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.bgDark,
-  },
-  headerSafeArea: {
-    backgroundColor: COLORS.red,
-  },
+  container: { flex: 1, backgroundColor: COLORS.bgDark },
+  headerSafeArea: { backgroundColor: COLORS.red },
   header: {
     backgroundColor: COLORS.red,
     paddingVertical: 18,
@@ -321,153 +246,77 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  menuButton: {
-    width: 28,
-  },
-  menuButtonSpacer: {
-    width: 28,
-  },
+  headerSide: { width: 70 },
+  headerSideRight: { alignItems: "flex-end" },
   headerText: {
-    color: COLORS.white,
-    fontSize: 20,
-    fontWeight: "700",
-  },
-  listContent: {
-    paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 200, // espacio para que el footer no tape las últimas tarjetas
-  },
-  columnWrapper: {
-    justifyContent: "space-between",
-  },
-  sectionTitle: {
-    color: COLORS.white,
-    fontSize: 20,
-    fontWeight: "700",
-    marginBottom: 14,
-  },
-  productCard: {
-    width: "48%",
-    backgroundColor: COLORS.cardDark,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: COLORS.cardBorder,
-    padding: 10,
-    marginBottom: 14,
-  },
-  productCardSelected: {
-    borderColor: COLORS.red,
-  },
-  productImage: {
-    width: "100%",
-    aspectRatio: 1,
-    borderRadius: 10,
-    backgroundColor: COLORS.cardBorder,
-  },
-  imageFallback: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  productName: {
-    color: COLORS.white,
-    fontSize: 15,
-    fontWeight: "800",
-    marginTop: 10,
-  },
-  productDescription: {
-    color: COLORS.textMuted,
-    fontSize: 12,
-    lineHeight: 16,
-    marginTop: 4,
-    minHeight: 32,
-  },
-  productStock: {
-    color: COLORS.textMuted,
-    fontSize: 12,
-    marginTop: 6,
-  },
-  productPrice: {
-    color: COLORS.red,
-    fontSize: 17,
-    fontWeight: "800",
-    marginTop: 4,
-  },
-  footer: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: COLORS.cardDark,
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    borderTopWidth: 1,
-    borderColor: COLORS.cardBorder,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 20,
-    elevation: 12,
-    shadowColor: "#000",
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: -4 },
-  },
-  footerTop: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 14,
-  },
-  footerInfo: {
     flex: 1,
-    marginRight: 12,
-  },
-  footerName: {
     color: COLORS.white,
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  footerSubtotal: {
-    color: COLORS.red,
     fontSize: 20,
-    fontWeight: "800",
-    marginTop: 2,
-  },
-  counter: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: COLORS.bgDark,
-    borderRadius: 12,
-    padding: 4,
-  },
-  counterButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    backgroundColor: COLORS.cardBorder,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  counterButtonDisabled: {
-    opacity: 0.4,
-  },
-  counterValue: {
-    color: COLORS.white,
-    fontSize: 18,
-    fontWeight: "800",
-    minWidth: 40,
+    fontWeight: "700",
     textAlign: "center",
   },
-  addButton: {
-    backgroundColor: COLORS.red,
-    borderRadius: 14,
-    paddingVertical: 16,
-    alignItems: "center",
-    justifyContent: "center",
+  nuevaText: { color: COLORS.yellow, fontSize: 16, fontWeight: "800" },
+  chipsContent: { paddingHorizontal: 16, paddingVertical: 14, gap: 8 },
+  chip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
+    backgroundColor: COLORS.cardDark,
   },
-  addButtonText: {
+  chipActive: { backgroundColor: COLORS.red, borderColor: COLORS.red },
+  chipText: { color: COLORS.textMuted, fontWeight: "600", fontSize: 14 },
+  chipTextActive: { color: COLORS.white },
+  devButton: {
+    alignSelf: "flex-start",
+    marginLeft: 16,
+    marginBottom: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.textMuted,
+  },
+  devButtonText: { color: COLORS.textMuted, fontSize: 11, fontWeight: "700" },
+  centered: { flex: 1, alignItems: "center", justifyContent: "center" },
+  listContent: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 24 },
+  emptyText: {
+    color: COLORS.textMuted,
+    fontSize: 14,
+    fontWeight: "600",
+    textAlign: "center",
+    marginTop: 24,
+  },
+  card: {
+    backgroundColor: COLORS.cardDark,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
+    padding: 14,
+    marginBottom: 14,
+  },
+  cardTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  cardNumero: { color: COLORS.textMuted, fontSize: 14, fontWeight: "700" },
+  cardPlaca: {
     color: COLORS.white,
     fontSize: 18,
     fontWeight: "800",
-    letterSpacing: 1,
+    marginTop: 8,
   },
+  cardCliente: { color: COLORS.textMuted, fontSize: 13, marginTop: 2 },
+  cardBottom: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 12,
+  },
+  cardMeta: { color: COLORS.textMuted, fontSize: 12, flex: 1, marginRight: 8 },
+  cardTotal: { color: COLORS.white, fontSize: 18, fontWeight: "800" },
+  badge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
+  badgeText: { color: COLORS.bgDark, fontSize: 12, fontWeight: "700" },
 });
